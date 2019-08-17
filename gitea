@@ -1,0 +1,11 @@
+#!/bin/bash
+GIT_KEY_ID=$(cat /home/git/.ssh/id_rsa.pub | awk '{ print $3 }')
+if ! grep -q "no-port.*$GIT_KEY_ID" /home/git/.ssh/authorized_keys
+then
+    echo \
+    "no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty" \
+    "$(cat /home/git/.ssh/id_rsa.pub)" \
+    >> /home/git/.ssh/authorized_keys
+fi
+ssh -p 10022 -o StrictHostKeyChecking=no git@127.0.0.1 \
+    SSH_ORIGINAL_COMMAND=$(printf '%q' "$SSH_ORIGINAL_COMMAND") "$0" "$@"

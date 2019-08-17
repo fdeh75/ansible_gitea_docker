@@ -1,0 +1,116 @@
+---
+
+- name: Example
+  hosts: "all"
+  become: true
+  become_user: root
+  become_method: su
+  vars:
+    docker_dir: /home/gitea/docker
+
+  tasks:
+  # TODO check is exist
+  - name: Add google DNS server
+    command: /bin/sh -c "echo \"nameserver 8.8.8.8\" >> /etc/resolv.conf"
+    register: dns_server
+  - debug: msg = "{{ dns_server.stdout }}"
+
+  - name: Install docker
+    include_role:
+     name: nickjj.docker
+    vars:
+     docker__edition: "ce"
+     docker__version: "18.06"
+
+  - name: Add the user 'gitea' with a specific uid and a primary group of 'gitea'
+    user:
+      name: gitea
+      comment: Gitea user
+      uid: 1040
+      home: /home/gitea
+
+  - name: Add user "git"
+    user:
+      name: git
+      comment: Git user
+      uid: 1041
+      home: /home/git
+
+  - name: Create worck dir for docker-compose
+    file:
+      path: "{{docker_dir}}"
+      recurse: true
+      owner: gitea
+      group: gitea
+      state: directory
+
+  - name: Copy docker compose file
+    copy:
+      src: ./docker-compose.yml
+      dest: "{{docker_dir}}"
+      owner: gitea
+      group: gitea
+
+#  - name: Copy config file
+#    copy:
+#      src: ./app.ini
+#      dest: /home/gitea/gitea/conf/app.ini
+#      owner: gitea
+#      group: gitea
+
+  - name: Start docker containers
+    command: /bin/sh -c "cd {{docker_dir}} && docker-compose up -d"
+
+  - name: Create symlinc ssh files to git user
+    file:
+      src: /home/gitea/git/.ssh
+      dest: /home/git/.ssh
+      state: link
+      force: yes
+      owner: git
+      group: git
+
+  - name: Generate ssh key for git user
+    openssh_keypair:
+      path: /home/git/.ssh/id_rsa
+      owner: git
+      group: git
+
+#TODO: check is exist
+  - name: Copy pub key git user to gitea ssh
+    command: >
+             /bin/sh -c "echo \"no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty
+             $(cat /home/git/.ssh/id_rsa.pub)\"  >> /home/git/.ssh/authorized_keys"
+
+  - name: Change owner authorized_keys
+    file:
+      path: /home/gitea/git/.ssh/authorized_keys
+      owner: git
+      group: git
+
+  - name: Create patch for magik hook
+    file:
+      path: /app/gitea/
+      recurse: true
+      state: directory
+
+  - name: Create magick hook for ssh autoforwarding to docker container
+    copy:
+      src: ./gitea
+      dest: /app/gitea/gitea
+      mode: 775
+
+  # TODO check is exist
+  - name: Modify sshd_donfig filr for no check .ssh modes
+    copy:
+      src: ./sshd_config
+      dest: /etc/ssh/sshd_config
+      owner: root
+      group: root
+      mode: 644
+      validate: '/usr/sbin/sshd -T -f %s'
+
+  - name: restart sshd
+    systemd:
+      name: sshd
+      state: restarted
