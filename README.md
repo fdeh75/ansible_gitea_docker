@@ -26,3 +26,7 @@ all:
 ```
 
 Step five: start ansible `ansible-playbook -i host.yml playbook.yml`
+
+## Troubleshuting 
+
+`fatal: unrecognized command` witch ssh connection - check shell for git user 

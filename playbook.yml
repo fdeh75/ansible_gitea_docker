@@ -34,6 +34,7 @@
       name: git
       comment: Git user
       uid: 1041
+      shell: /bin/sh
       home: /home/git
 
   - name: Create worck dir for docker-compose
